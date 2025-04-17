@@ -98,7 +98,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
     // For large datasets, limit the number of displayed elements to improve performance
     const MAX_ELEMENTS_PER_CATEGORY = 10000; // Limit to prevent performance issues
 
-    // Panel lines
+    // Panel lines - per user request, showing these with white color
     if (data.PanelsDataDict) {
       let count = 0;
       for (const panelId in data.PanelsDataDict) {
@@ -108,7 +108,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
         for (let i = 0; i < element.Lines2D.length && count < MAX_ELEMENTS_PER_CATEGORY; i++) {
           const line = element.Lines2D[i];
           if (line.Start && line.End) {
-            elems.push({ ...line, type: "PanelLine", color: colors.other });
+            elems.push({ ...line, type: "Line2D", color: "white" });
             count++;
           }
         }
@@ -119,15 +119,15 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
 
     // Other view lines
     if (data.ViewLines) {
-      // Other lines
-      if (data.ViewLines.Other && visibleLayers.other) {
+      // Other lines - per user request, showing these with gray color
+      if (data.ViewLines.Other) {
         const lines = data.ViewLines.Other;
         const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
         
         for (let i = 0; i < totalLines; i++) {
           const line = lines[i];
           if (line.Start && line.End) {
-            elems.push({...line, type: "Other", color: colors.other});
+            elems.push({...line, type: "Line2D", color: "gray"});
           }
         }
       }
@@ -430,11 +430,15 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
   };
 
   // Update layer visibility
-  const handleLayerToggle = (layer: keyof typeof visibleLayers, value: boolean) => {
-    setVisibleLayers(prev => ({
-      ...prev,
-      [layer]: value
-    }));
+  const handleLayerToggle = (id: string, value: boolean) => {
+    // Cast id to the correct type if it's a valid layer key
+    if (id in visibleLayers) {
+      const layer = id as keyof typeof visibleLayers;
+      setVisibleLayers(prev => ({
+        ...prev,
+        [layer]: value
+      }));
+    }
   };
 
   // Handle mouse down for selection
@@ -518,10 +522,40 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
       const minY = Math.min(y1, y2);
       const maxY = Math.max(y1, y2);
       
-      // Check if any part of the route is within the selection
-      const isSelected = 
+      // Check if any part of the route is within the selection using line-rectangle intersection
+      // Line segment: (routeX1, routeY1) to (routeX2, routeY2)
+      // Rectangle: (minX, minY) to (maxX, maxY)
+      
+      // 1. Check if either endpoint is inside the rectangle
+      const endpointInside = 
         (routeX1 >= minX && routeX1 <= maxX && routeY1 >= minY && routeY1 <= maxY) ||
         (routeX2 >= minX && routeX2 <= maxX && routeY2 >= minY && routeY2 <= maxY);
+      
+      // 2. Check if line intersects any of the rectangle edges
+      // For simplicity, we check if the line intersects with each of the rectangle's 4 edges
+      
+      // Helper function to check if two line segments intersect
+      const doLineSegmentsIntersect = (
+        x1: number, y1: number, x2: number, y2: number,
+        x3: number, y3: number, x4: number, y4: number
+      ) => {
+        // Calculate the direction of the lines
+        const uA = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+        const uB = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+        
+        // If uA and uB are between 0-1, lines are intersecting
+        return (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1);
+      };
+      
+      // Check intersection with the 4 edges of the rectangle
+      const lineIntersectsRectangle =
+        doLineSegmentsIntersect(routeX1, routeY1, routeX2, routeY2, minX, minY, maxX, minY) || // Top edge
+        doLineSegmentsIntersect(routeX1, routeY1, routeX2, routeY2, maxX, minY, maxX, maxY) || // Right edge
+        doLineSegmentsIntersect(routeX1, routeY1, routeX2, routeY2, maxX, maxY, minX, maxY) || // Bottom edge
+        doLineSegmentsIntersect(routeX1, routeY1, routeX2, routeY2, minX, maxY, minX, minY);   // Left edge
+      
+      // If either condition is true, the line intersects with the rectangle
+      const isSelected = endpointInside || lineIntersectsRectangle;
       
       if (isSelected) {
         acc.push(index);
@@ -537,7 +571,10 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
       ...prev,
       visible: false
     }));
-  }, [selectionMode, selectionRect, routeElements, xScale, yScale]);
+    
+    // Return to hand mode after selection (per user request)
+    setSelectionMode(false);
+  }, [selectionMode, selectionRect, routeElements, xScale, yScale, setSelectionMode]);
   
   if (width === 0 || height === 0) {
     return <div ref={containerRef} className="absolute inset-0 bg-background"></div>;
