@@ -170,6 +170,17 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
           }
         }
       }
+
+      // Alternative iteration method as requested - processing all ViewLines items as gray
+      Object.values(data.ViewLines).forEach((element: any) => {
+        if (element && Array.isArray(element)) {
+          element.forEach((line: any) => {
+            if (line && line.Start && line.End) {
+              elems.push({ ...line, type: "Line2D", color: "gray" });
+            }
+          });
+        }
+      });
     }
 
     return elems;
