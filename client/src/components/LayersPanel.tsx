@@ -9,7 +9,7 @@ interface Layer {
 
 interface LayersPanelProps {
   layers: Layer[];
-  onToggleLayer: (id: string, visible: boolean) => void;
+  onToggleLayer: (id: string | keyof any, visible: boolean) => void;
 }
 
 export default function LayersPanel({ layers, onToggleLayer }: LayersPanelProps) {

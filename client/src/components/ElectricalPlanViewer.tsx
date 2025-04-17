@@ -91,89 +91,125 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
     }
   }, [selectionMode]);
 
-  // Process background elements
+  // Process background elements - with performance optimizations
   const backgroundElements = useMemo(() => {
     const elems: any[] = [];
+    
+    // For large datasets, limit the number of displayed elements to improve performance
+    const MAX_ELEMENTS_PER_CATEGORY = 10000; // Limit to prevent performance issues
 
     // Panel lines
     if (data.PanelsDataDict) {
-      Object.values(data.PanelsDataDict).forEach((element) => {
-        if (element.Lines2D) {
-          element.Lines2D.forEach((line) => {
-            if (line.Start && line.End) {
-              elems.push({ ...line, type: "PanelLine", color: colors.other });
-            }
-          });
+      let count = 0;
+      for (const panelId in data.PanelsDataDict) {
+        const element = data.PanelsDataDict[panelId];
+        if (!element.Lines2D) continue;
+        
+        for (let i = 0; i < element.Lines2D.length && count < MAX_ELEMENTS_PER_CATEGORY; i++) {
+          const line = element.Lines2D[i];
+          if (line.Start && line.End) {
+            elems.push({ ...line, type: "PanelLine", color: colors.other });
+            count++;
+          }
         }
-      });
+        
+        if (count >= MAX_ELEMENTS_PER_CATEGORY) break;
+      }
     }
 
     // Other view lines
     if (data.ViewLines) {
       // Other lines
       if (data.ViewLines.Other && visibleLayers.other) {
-        data.ViewLines.Other.forEach((line) => {
+        const lines = data.ViewLines.Other;
+        const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
+        
+        for (let i = 0; i < totalLines; i++) {
+          const line = lines[i];
           if (line.Start && line.End) {
             elems.push({...line, type: "Other", color: colors.other});
           }
-        });
+        }
       }
 
       // Electrical equipment
       if (data.ViewLines.ElectricalEquipment && visibleLayers.equipment) {
-        data.ViewLines.ElectricalEquipment.forEach((line) => {
+        const lines = data.ViewLines.ElectricalEquipment;
+        const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
+        
+        for (let i = 0; i < totalLines; i++) {
+          const line = lines[i];
           if (line.Start && line.End) {
             elems.push({...line, type: "ElectricalEquipment", color: colors.equipment});
           }
-        });
+        }
       }
 
       // Conduit fittings
       if (data.ViewLines.ConduitFittings && visibleLayers.fittings) {
-        data.ViewLines.ConduitFittings.forEach((line) => {
+        const lines = data.ViewLines.ConduitFittings;
+        const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
+        
+        for (let i = 0; i < totalLines; i++) {
+          const line = lines[i];
           if (line.Start && line.End) {
             elems.push({...line, type: "ConduitFittings", color: colors.fittings});
           }
-        });
+        }
       }
 
       // Electrical fixtures
       if (data.ViewLines.ElectricalFixture && visibleLayers.fixtures) {
-        data.ViewLines.ElectricalFixture.forEach((line) => {
+        const lines = data.ViewLines.ElectricalFixture;
+        const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
+        
+        for (let i = 0; i < totalLines; i++) {
+          const line = lines[i];
           if (line.Start && line.End) {
             elems.push({...line, type: "ElectricalFixture", color: colors.fixtures});
           }
-        });
+        }
       }
     }
 
     return elems;
   }, [data, visibleLayers, colors]);
 
-  // Process route elements
+  // Process route elements with performance optimizations
   const routeElements = useMemo(() => {
     const elems: any[] = [];
+    const MAX_ROUTES = 15000; // Limit to prevent performance issues
+    let routeCount = 0;
     
     if (data.SingleRoutesInfoDict && visibleLayers.routes) {
-      Object.values(data.SingleRoutesInfoDict).forEach((route) => {
-        if (route.Route2D && route.Route2D.Segments) {
-          route.Route2D.Segments.forEach((segment) => {
-            if (
-              segment.Segment2D &&
-              segment.Segment2D.Start &&
-              segment.Segment2D.End
-            ) {
-              elems.push({
-                Start: segment.Segment2D.Start,
-                End: segment.Segment2D.End,
-                type: "RouteSegment",
-                color: colors.routes,
-                label: route.RunName || "",
-              });
-            }
-          });
+      const routes = Object.values(data.SingleRoutesInfoDict);
+      
+      // Process routes up to our limit
+      for (const route of routes) {
+        if (!route.Route2D || !route.Route2D.Segments) continue;
+        
+        for (const segment of route.Route2D.Segments) {
+          if (
+            segment.Segment2D &&
+            segment.Segment2D.Start &&
+            segment.Segment2D.End
+          ) {
+            elems.push({
+              Start: segment.Segment2D.Start,
+              End: segment.Segment2D.End,
+              type: "RouteSegment",
+              color: colors.routes,
+              label: route.RunName || "",
+              routeId: route.Id || ""
+            });
+            
+            routeCount++;
+            if (routeCount >= MAX_ROUTES) break;
+          }
         }
-      });
+        
+        if (routeCount >= MAX_ROUTES) break;
+      }
     }
     
     return elems;
