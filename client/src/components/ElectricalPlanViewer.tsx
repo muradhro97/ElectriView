@@ -296,7 +296,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
       context.moveTo(xScale(line.Start.X), yScale(line.Start.Y));
       context.lineTo(xScale(line.End.X), yScale(line.End.Y));
       context.strokeStyle = line.color;
-      context.lineWidth = 1;
+      context.lineWidth = 0.5; // Thinner lines to avoid overlapping
       context.stroke();
     });
     
@@ -488,31 +488,40 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
   const handleMouseUp = useCallback(() => {
     if (!selectionMode || !selectionRect.visible) return;
     
-    // Convert selection rectangle to data coordinates
+    // Convert selection rectangle to stage coordinates
     const stage = stageRef.current;
     const stageScale = stage.scaleX();
     const stagePos = stage.position();
     
-    // Calculate selection rectangle in original data coordinates
+    // Calculate selection rectangle in stage coordinates
     const selectionX1 = (selectionRect.x - stagePos.x) / stageScale;
     const selectionY1 = (selectionRect.y - stagePos.y) / stageScale;
     const selectionX2 = selectionX1 + selectionRect.width / stageScale;
     const selectionY2 = selectionY1 + selectionRect.height / stageScale;
     
+    // Convert back to data coordinates using inverse of scale
+    const x1 = xScale.invert(selectionX1);
+    const y1 = yScale.invert(selectionY1);
+    const x2 = xScale.invert(selectionX2);
+    const y2 = yScale.invert(selectionY2);
+    
     // Find routes within the selection rectangle
     const selected = routeElements.reduce((acc, route, index) => {
-      // Convert route start and end points to screen coordinates
-      const routeStartX = xScale(route.Start.X);
-      const routeStartY = yScale(route.Start.Y);
-      const routeEndX = xScale(route.End.X);
-      const routeEndY = yScale(route.End.Y);
+      const routeX1 = route.Start.X;
+      const routeY1 = route.Start.Y;
+      const routeX2 = route.End.X;
+      const routeY2 = route.End.Y;
+      
+      // Need to account for the possibly inverted coordinates when checking bounds
+      const minX = Math.min(x1, x2);
+      const maxX = Math.max(x1, x2);
+      const minY = Math.min(y1, y2);
+      const maxY = Math.max(y1, y2);
       
       // Check if any part of the route is within the selection
       const isSelected = 
-        (routeStartX >= selectionX1 && routeStartX <= selectionX2 && 
-         routeStartY >= selectionY1 && routeStartY <= selectionY2) ||
-        (routeEndX >= selectionX1 && routeEndX <= selectionX2 && 
-         routeEndY >= selectionY1 && routeEndY <= selectionY2);
+        (routeX1 >= minX && routeX1 <= maxX && routeY1 >= minY && routeY1 <= maxY) ||
+        (routeX2 >= minX && routeX2 <= maxX && routeY2 >= minY && routeY2 <= maxY);
       
       if (isSelected) {
         acc.push(index);
@@ -523,7 +532,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
     
     setSelectedRoutes(selected);
     
-    // Reset selection rectangle but keep it visible
+    // Reset selection rectangle
     setSelectionRect(prev => ({
       ...prev,
       visible: false
@@ -570,7 +579,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
                 yScale(elem.End.Y),
               ]}
               stroke={selectedRoutes.includes(index) ? "#00ff00" : elem.color}
-              strokeWidth={selectedRoutes.includes(index) ? 3 : 2}
+              strokeWidth={selectedRoutes.includes(index) ? 1.5 : 0.75}
               lineCap="round"
               lineJoin="round"
             />
@@ -621,6 +630,20 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
           </svg>
         </button>
         
+        {selectedRoutes.length > 0 && (
+          <button
+            onClick={() => setSelectedRoutes([])}
+            className="bg-surface/80 backdrop-blur-sm rounded-full p-2.5 shadow-lg"
+            title="Clear Selection"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="15" y1="9" x2="9" y2="15"></line>
+              <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+          </button>
+        )}
+        
         {showLayersPanel && (
           <LayersPanel 
             layers={[
@@ -635,30 +658,10 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
         )}
       </div>
       
-      {/* Selection Stats */}
+      {/* Selection count indicator */}
       {selectedRoutes.length > 0 && (
-        <div className="absolute bottom-24 left-4 right-4 md:left-auto md:right-4 md:max-w-xs bg-surface/95 backdrop-blur-sm rounded-lg p-3 shadow-lg">
-          <div className="flex justify-between items-center mb-1">
-            <h3 className="font-medium">Selection</h3>
-            <button 
-              onClick={() => setSelectedRoutes([])} 
-              className="text-textSecondary hover:text-textPrimary p-1"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-          <div className="text-sm">
-            <div className="bg-background rounded p-2 text-center mb-1">
-              <span className="text-xs text-textSecondary block">Selected Routes</span>
-              <span className="font-medium">{selectedRoutes.length}</span>
-            </div>
-            <p className="text-xs text-textSecondary">
-              Use the rectangle selection tool to select routes in a specific area.
-            </p>
-          </div>
+        <div className="absolute bottom-12 right-4 bg-surface/80 backdrop-blur-sm rounded-md px-3 py-1.5 text-sm font-medium">
+          Selected: {selectedRoutes.length}
         </div>
       )}
     </div>
