@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo, useImperativeHandle } from "react";
-import { Stage, Layer, Image as KonvaImage, Line, Text } from "react-konva";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Stage, Layer, Image as KonvaImage, Line, Rect, Group } from "react-konva";
 import * as d3 from "d3";
 import useContainerSize from "@/hooks/useContainerSize";
 import LayersPanel from "@/components/LayersPanel";
@@ -22,6 +22,25 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [showLayersPanel, setShowLayersPanel] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionRect, setSelectionRect] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    visible: boolean;
+    startX: number;
+    startY: number;
+  }>({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    visible: false,
+    startX: 0,
+    startY: 0
+  });
+  const [selectedRoutes, setSelectedRoutes] = useState<number[]>([]);
   const [visibleLayers, setVisibleLayers] = useState({
     equipment: true,
     fittings: true,
@@ -46,10 +65,31 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
       zoomOut: () => handleZoom(0.8),
       resetView: () => resetView(),
       fitToScreen: () => fitToScreen(),
+      toggleSelectionMode: () => toggleSelectionMode(),
     };
     
     setViewerInstance(instance);
   }, [setViewerInstance]);
+  
+  // Toggle selection mode
+  const toggleSelectionMode = useCallback(() => {
+    setSelectionMode(prev => !prev);
+    setSelectionRect({
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      visible: false,
+      startX: 0,
+      startY: 0
+    });
+    setSelectedRoutes([]);
+    
+    // Toggle stage draggability based on selection mode
+    if (stageRef.current) {
+      stageRef.current.draggable(!selectionMode);
+    }
+  }, [selectionMode]);
 
   // Process background elements
   const backgroundElements = useMemo(() => {
@@ -361,21 +401,121 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
     }));
   };
 
+  // Handle mouse down for selection
+  const handleMouseDown = useCallback((e: any) => {
+    if (!selectionMode) return;
+    
+    // Get mouse position
+    const stage = stageRef.current;
+    const pointerPos = stage.getPointerPosition();
+    
+    setSelectionRect({
+      x: pointerPos.x,
+      y: pointerPos.y,
+      width: 0,
+      height: 0,
+      visible: true,
+      startX: pointerPos.x,
+      startY: pointerPos.y
+    });
+  }, [selectionMode]);
+  
+  // Handle mouse move for selection
+  const handleMouseMove = useCallback((e: any) => {
+    if (!selectionMode || !selectionRect.visible) return;
+    
+    const stage = stageRef.current;
+    const pointerPos = stage.getPointerPosition();
+    
+    // Calculate width and height based on start point
+    const newWidth = pointerPos.x - selectionRect.startX;
+    const newHeight = pointerPos.y - selectionRect.startY;
+    
+    // Determine the correct position for the rectangle
+    const newX = newWidth >= 0 ? selectionRect.startX : pointerPos.x;
+    const newY = newHeight >= 0 ? selectionRect.startY : pointerPos.y;
+    
+    // Set the absolute values for width and height
+    const absWidth = Math.abs(newWidth);
+    const absHeight = Math.abs(newHeight);
+    
+    setSelectionRect(prev => ({
+      ...prev,
+      x: newX,
+      y: newY,
+      width: absWidth,
+      height: absHeight
+    }));
+  }, [selectionMode, selectionRect]);
+  
+  // Handle mouse up for selection
+  const handleMouseUp = useCallback(() => {
+    if (!selectionMode || !selectionRect.visible) return;
+    
+    // Convert selection rectangle to data coordinates
+    const stage = stageRef.current;
+    const stageScale = stage.scaleX();
+    const stagePos = stage.position();
+    
+    // Calculate selection rectangle in original data coordinates
+    const selectionX1 = (selectionRect.x - stagePos.x) / stageScale;
+    const selectionY1 = (selectionRect.y - stagePos.y) / stageScale;
+    const selectionX2 = selectionX1 + selectionRect.width / stageScale;
+    const selectionY2 = selectionY1 + selectionRect.height / stageScale;
+    
+    // Find routes within the selection rectangle
+    const selected = routeElements.reduce((acc, route, index) => {
+      // Convert route start and end points to screen coordinates
+      const routeStartX = xScale(route.Start.X);
+      const routeStartY = yScale(route.Start.Y);
+      const routeEndX = xScale(route.End.X);
+      const routeEndY = yScale(route.End.Y);
+      
+      // Check if any part of the route is within the selection
+      const isSelected = 
+        (routeStartX >= selectionX1 && routeStartX <= selectionX2 && 
+         routeStartY >= selectionY1 && routeStartY <= selectionY2) ||
+        (routeEndX >= selectionX1 && routeEndX <= selectionX2 && 
+         routeEndY >= selectionY1 && routeEndY <= selectionY2);
+      
+      if (isSelected) {
+        acc.push(index);
+      }
+      
+      return acc;
+    }, [] as number[]);
+    
+    setSelectedRoutes(selected);
+    
+    // Reset selection rectangle but keep it visible
+    setSelectionRect(prev => ({
+      ...prev,
+      visible: false
+    }));
+  }, [selectionMode, selectionRect, routeElements, xScale, yScale]);
+  
   if (width === 0 || height === 0) {
     return <div ref={containerRef} className="absolute inset-0 bg-background"></div>;
   }
 
   return (
-    <div ref={containerRef} className="absolute inset-0 bg-background overflow-hidden">
+    <div 
+      ref={containerRef} 
+      className="absolute inset-0 bg-background overflow-hidden"
+      style={{ cursor: selectionMode ? 'crosshair' : 'grab' }}
+    >
       <Stage
         ref={stageRef}
         width={width}
         height={height}
-        draggable
+        draggable={!selectionMode}
         onWheel={handleWheel}
         onDragEnd={(e) => {
           setPosition(e.target.position());
         }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
       >
         {/* Background Layer */}
         <Layer>
@@ -393,12 +533,26 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
                 xScale(elem.End.X),
                 yScale(elem.End.Y),
               ]}
-              stroke={elem.color}
-              strokeWidth={2}
+              stroke={selectedRoutes.includes(index) ? "#00ff00" : elem.color}
+              strokeWidth={selectedRoutes.includes(index) ? 3 : 2}
               lineCap="round"
               lineJoin="round"
             />
           ))}
+          
+          {/* Selection Rectangle */}
+          {selectionMode && selectionRect.visible && (
+            <Rect
+              x={selectionRect.x}
+              y={selectionRect.y}
+              width={selectionRect.width}
+              height={selectionRect.height}
+              fill="rgba(0, 255, 255, 0.2)"
+              stroke="#00ffff"
+              strokeWidth={1}
+              dash={[5, 5]}
+            />
+          )}
         </Layer>
       </Stage>
       
@@ -407,16 +561,27 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
         {Math.round(scale * 100)}%
       </div>
       
-      {/* Layer Toggle Panel */}
-      <div className="absolute top-4 left-4">
+      {/* Control Buttons */}
+      <div className="absolute top-4 left-4 flex flex-col gap-2">
         <button 
           onClick={handleToggleLayers}
           className="bg-surface/80 backdrop-blur-sm rounded-full p-2.5 shadow-lg"
+          title="Toggle Layers"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
             <polyline points="2 17 12 22 22 17"></polyline>
             <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </button>
+        
+        <button 
+          onClick={toggleSelectionMode}
+          className={`bg-surface/80 backdrop-blur-sm rounded-full p-2.5 shadow-lg ${selectionMode ? 'ring-2 ring-primary' : ''}`}
+          title="Rectangle Selection Tool"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
           </svg>
         </button>
         
@@ -433,6 +598,33 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
           />
         )}
       </div>
+      
+      {/* Selection Stats */}
+      {selectedRoutes.length > 0 && (
+        <div className="absolute bottom-24 left-4 right-4 md:left-auto md:right-4 md:max-w-xs bg-surface/95 backdrop-blur-sm rounded-lg p-3 shadow-lg">
+          <div className="flex justify-between items-center mb-1">
+            <h3 className="font-medium">Selection</h3>
+            <button 
+              onClick={() => setSelectedRoutes([])} 
+              className="text-textSecondary hover:text-textPrimary p-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div className="text-sm">
+            <div className="bg-background rounded p-2 text-center mb-1">
+              <span className="text-xs text-textSecondary block">Selected Routes</span>
+              <span className="font-medium">{selectedRoutes.length}</span>
+            </div>
+            <p className="text-xs text-textSecondary">
+              Use the rectangle selection tool to select routes in a specific area.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -69,6 +69,14 @@ export default function Home() {
     viewerInstance?.zoomOut();
   };
   
+  const [selectionMode, setSelectionMode] = useState(false);
+  
+  const handleToggleSelection = () => {
+    const newMode = !selectionMode;
+    setSelectionMode(newMode);
+    viewerInstance?.toggleSelectionMode();
+  };
+  
   // Helper function to read file
   const readFileAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -142,6 +150,8 @@ export default function Home() {
           onZoomOut={handleZoomOut}
           onChangeFile={handleChangeFile}
           onToggleInfo={handleTogglePlanInfo}
+          onToggleSelection={handleToggleSelection}
+          selectionActive={selectionMode}
         />
       )}
     </div>

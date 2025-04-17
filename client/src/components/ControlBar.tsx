@@ -7,6 +7,8 @@ interface ControlBarProps {
   onZoomOut: () => void;
   onChangeFile: () => void;
   onToggleInfo: () => void;
+  onToggleSelection?: () => void;
+  selectionActive?: boolean;
 }
 
 export default function ControlBar({
@@ -15,7 +17,9 @@ export default function ControlBar({
   onZoomIn,
   onZoomOut,
   onChangeFile,
-  onToggleInfo
+  onToggleInfo,
+  onToggleSelection,
+  selectionActive = false
 }: ControlBarProps) {
   return (
     <motion.div 
@@ -49,6 +53,18 @@ export default function ControlBar({
             <line x1="12" y1="8" x2="12.01" y2="8"></line>
           </svg>
         </button>
+        
+        {onToggleSelection && (
+          <button 
+            onClick={onToggleSelection}
+            className={`p-2.5 rounded-full hover:bg-background/50 transition-colors ${selectionActive ? 'bg-primary/25 ring-1 ring-primary' : ''}`} 
+            title="Rectangle Selection Tool"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            </svg>
+          </button>
+        )}
         
         <div className="flex items-center bg-background/40 rounded-full">
           <button 
