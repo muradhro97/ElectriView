@@ -1,0 +1,318 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { Stage, Layer, Image as KonvaImage, Line, Text } from "react-konva";
+import * as d3 from "d3";
+import useContainerSize from "../hooks/useContainerSize";
+
+const ElectricalPlan = () => {
+  const containerRef = useRef(null);
+  const { width, height } = useContainerSize(containerRef);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const margin = 0;
+
+  // Load JSON data
+  useEffect(() => {
+    const jsonData = require("../../assets/data3.json");
+    setData(jsonData);
+    setLoading(false);
+  }, []);
+
+  // Check if container dimensions are available
+  if (width === 0 || height === 0) {
+    return <div ref={containerRef} style={{ width: "100%", height: "100%", background: "rgb(15,15,23)", overflow: "hidden", color: "white" }}>Loading container...</div>;
+  }
+
+  return (
+      <div
+          ref={containerRef}
+          style={{
+            width: "100%",
+            height: "100%",
+            background: "rgb(15,15,23)",
+            overflow: "hidden",
+          }}
+      >
+        {loading || !data ? (
+            <div style={{ color: "white" }}>Loading...</div>
+        ) : (
+            <RenderVisualization data={data} width={width} height={height} margin={margin} />
+        )}
+      </div>
+  );
+};
+
+const RenderVisualization = ({ data, width, height, margin }) => {
+  const stageRef = useRef(null);
+  const imageRef = useRef(null);
+
+  // Process background elements
+  const backgroundElements = useMemo(() => {
+    const elems = [];
+
+    // if (data.RevitElementsDataDict) {
+    //   Object.values(data.RevitElementsDataDict).forEach((element) => {
+        // if (element.Curves) {
+        //   element.Curves.forEach((curve) => {
+        //     if (curve.Start && curve.End) {
+        //       elems.push({ ...curve, type: "Curve", color: "green" });
+        //     }
+        //   });
+        // }
+        // if (element.ElectricalCurves) {
+        //   element.ElectricalCurves.forEach((curve) => {
+        //     if (curve.Start && curve.End) {
+        //       elems.push({ ...curve, type: "ElectricalCurve", color: "blue" });
+        //     }
+        //   });
+        // }
+        // if (element.Lines2D) {
+        //   element.Lines2D.forEach((line) => {
+        //     if (line.Start && line.End) {
+        //       elems.push({ ...line, type: "Line2D", color: "red" });
+        //     }
+        //   });
+        // }
+      // });
+    // }
+
+    if (data.PanelsDataDict) {
+      Object.values(data.PanelsDataDict).forEach((element) => {
+        if (element.Lines2D) {
+          element.Lines2D.forEach((line) => {
+            if (line.Start && line.End) {
+              elems.push({ ...line, type: "Line2D", color: "white" });
+            }
+          });
+        }
+      });
+    }
+
+    if (data.ViewLines.Other) {
+      data.ViewLines.Other.forEach((line) => {
+        if (line.Start && line.End) {
+          elems.push({...line, type: "Line2D", color: "gray"});
+        }
+      });
+    }
+
+    if (data.ViewLines.ElectricalEquipment) {
+      data.ViewLines.ElectricalEquipment.forEach((line) => {
+        if (line.Start && line.End) {
+          elems.push({...line, type: "Line2D", color: "blue"});
+        }
+      });
+    }
+
+    if (data.ViewLines.ConduitFittings) {
+      data.ViewLines.ConduitFittings.forEach((line) => {
+        if (line.Start && line.End) {
+          elems.push({...line, type: "Line2D", color: "green"});
+        }
+      });
+    }
+
+    if (data.ViewLines.ElectricalFixture) {
+      data.ViewLines.ElectricalFixture.forEach((line) => {
+        if (line.Start && line.End) {
+          elems.push({...line, type: "Line2D", color: "yellow"});
+        }
+      });
+    }
+      // Object.values(data.ViewLines).forEach((element) => {
+      //   if (element.Other) {
+      //     element.Other.forEach((line) => {
+      //       if (line.Start && line.End) {
+      //         elems.push({ ...line, type: "Line2D", color: "gray" });
+      //       }
+      //     });
+      //   }
+      //   if (element.ElectricalEquipment) {
+      //     element.ElectricalEquipment.forEach((line) => {
+      //       if (line.Start && line.End) {
+      //         elems.push({ ...line, type: "Line2D", color: "gray" });
+      //       }
+      //     });
+      //   }
+      //   if (element.ConduitFittings) {
+      //     element.ConduitFittings.forEach((line) => {
+      //       if (line.Start && line.End) {
+      //         elems.push({ ...line, type: "Line2D", color: "gray" });
+      //       }
+      //     });
+      //   }
+      //   if (element.ElectricalFixture) {
+      //     element.ElectricalFixture.forEach((line) => {
+      //       if (line.Start && line.End) {
+      //         elems.push({ ...line, type: "Line2D", color: "gray" });
+      //       }
+      //     });
+      //   }
+      //
+      // });
+    // }
+    return elems;
+  }, [data]);
+
+
+
+  // Process vector elements
+  const vectorElements = useMemo(() => {
+    const elems = [];
+    if (data.SingleRoutesInfoDict) {
+      Object.values(data.SingleRoutesInfoDict).forEach((route) => {
+        if (route.Route2D) {
+          // if (route.Route2D.StartPoint && route.Route2D.EndPoint) {
+          //   elems.push({
+          //     Start: route.Route2D.StartPoint,
+          //     End: route.Route2D.EndPoint,
+          //     type: "RouteMain",
+          //     color: "purple",
+          //     label: route.RunName || "",
+          //   });
+          // }
+          if (route.Route2D.Segments) {
+            route.Route2D.Segments.forEach((segment) => {
+              if (
+                  segment.Segment2D &&
+                  segment.Segment2D.Start &&
+                  segment.Segment2D.End
+              ) {
+                elems.push({
+                  Start: segment.Segment2D.Start,
+                  End: segment.Segment2D.End,
+                  type: "RouteSegment",
+                  color: "orange",
+                  // label: route.RunName || "",
+                });
+              }
+            });
+          }
+        }
+      });
+    }
+    return elems;
+  }, [data]);
+
+  const allElements = useMemo(() => [...backgroundElements, ...vectorElements], [
+    backgroundElements,
+    vectorElements,
+  ]);
+
+  // Compute domains
+  const xDomain = useMemo(() => {
+    const minX = d3.min(allElements, (d) => Math.min(d.Start.X, d.End.X)) || 0;
+    const maxX = d3.max(allElements, (d) => Math.max(d.Start.X, d.End.X)) || width;
+    return [minX, maxX];
+  }, [allElements, width]);
+
+  const yDomain = useMemo(() => {
+    const minY = d3.min(allElements, (d) => Math.min(d.Start.Y, d.End.Y)) || 0;
+    const maxY = d3.max(allElements, (d) => Math.max(d.Start.Y, d.End.Y)) || height;
+    return [minY, maxY];
+  }, [allElements, height]);
+
+  // Create scales mapping data coordinates to canvas coordinates.
+  const xScale = useMemo(
+      () => d3.scaleLinear().domain(xDomain).range([margin, width - margin]).nice(),
+      [xDomain, width, margin]
+  );
+  const yScale = useMemo(
+      () => d3.scaleLinear().domain(yDomain).range([height - margin, margin]).nice(),
+      [yDomain, height, margin]
+  );
+
+  // Create offscreen canvas for background drawing.
+  const offscreenCanvas = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = width + margin * 2;
+    canvas.height = height + margin * 2;
+    return canvas;
+  }, [width, height, margin]);
+
+  // Draw background elements
+  useEffect(() => {
+    const context = offscreenCanvas.getContext("2d");
+    context.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+    context.fillStyle = "rgb(15,15,23)";
+    context.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+
+    backgroundElements.forEach((line) => {
+      context.beginPath();
+      context.moveTo(xScale(line.Start.X), yScale(line.Start.Y));
+      context.lineTo(xScale(line.End.X), yScale(line.End.Y));
+      context.strokeStyle = line.color;
+      context.lineWidth = 1;
+      context.stroke();
+    });
+    if (imageRef.current) {
+      imageRef.current.getLayer().batchDraw();
+    }
+  }, [offscreenCanvas, backgroundElements, xScale, yScale, width, height]);
+
+  // Zoom and pan handler
+  const handleWheel = (e) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+    const scaleBy = 1.1;
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    stage.scale({ x: newScale, y: newScale });
+    stage.position({
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    });
+    stage.batchDraw();
+  };
+
+  return (
+      <Stage
+          ref={stageRef}
+          width={width + margin * 2}
+          height={height + margin * 2}
+          draggable
+          onWheel={handleWheel}
+          style={{ background: "rgb(15,15,23)" }}
+      >
+        {/* Background Layer */}
+        <Layer>
+          <KonvaImage ref={imageRef} image={offscreenCanvas} />
+        </Layer>
+        {/* Vector Elements Layer */}
+        <Layer>
+          {vectorElements.map((elem, index) => (
+              <React.Fragment key={index}>
+                <Line
+                    points={[
+                      xScale(elem.Start.X),
+                      yScale(elem.Start.Y),
+                      xScale(elem.End.X),
+                      yScale(elem.End.Y),
+                    ]}
+                    stroke={elem.color}
+                    strokeWidth={1}
+                    lineCap="round"
+                    lineJoin="round"
+                />
+                {elem.label && (
+                    <Text
+                        x={(xScale(elem.Start.X) + xScale(elem.End.X)) / 2}
+                        y={(yScale(elem.Start.Y) + yScale(elem.End.Y)) / 2}
+                        text={elem.label}
+                        fontSize={12}
+                        fill="black"
+                    />
+                )}
+              </React.Fragment>
+          ))}
+        </Layer>
+      </Stage>
+  );
+};
+
+export default ElectricalPlan;
