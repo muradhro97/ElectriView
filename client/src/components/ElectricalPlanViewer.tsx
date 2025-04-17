@@ -98,7 +98,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
     // For large datasets, limit the number of displayed elements to improve performance
     const MAX_ELEMENTS_PER_CATEGORY = 10000; // Limit to prevent performance issues
 
-    // Panel lines - per user request, showing these with white color
+    // Panel lines - white color as requested
     if (data.PanelsDataDict) {
       let count = 0;
       for (const panelId in data.PanelsDataDict) {
@@ -117,9 +117,9 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
       }
     }
 
-    // Other view lines
+    // Other view lines - exactly as requested in the same order
     if (data.ViewLines) {
-      // Other lines - per user request, showing these with gray color
+      // Other lines - gray color
       if (data.ViewLines.Other) {
         const lines = data.ViewLines.Other;
         const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
@@ -132,48 +132,48 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
         }
       }
 
-      // Electrical equipment
-      if (data.ViewLines.ElectricalEquipment && visibleLayers.equipment) {
+      // Electrical equipment - blue color
+      if (data.ViewLines.ElectricalEquipment) {
         const lines = data.ViewLines.ElectricalEquipment;
         const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
 
         for (let i = 0; i < totalLines; i++) {
           const line = lines[i];
           if (line.Start && line.End) {
-            elems.push({...line, type: "ElectricalEquipment", color: colors.equipment});
+            elems.push({...line, type: "Line2D", color: "blue"});
           }
         }
       }
 
-      // Conduit fittings
-      if (data.ViewLines.ConduitFittings && visibleLayers.fittings) {
+      // Conduit fittings - green color
+      if (data.ViewLines.ConduitFittings) {
         const lines = data.ViewLines.ConduitFittings;
         const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
 
         for (let i = 0; i < totalLines; i++) {
           const line = lines[i];
           if (line.Start && line.End) {
-            elems.push({...line, type: "ConduitFittings", color: colors.fittings});
+            elems.push({...line, type: "Line2D", color: "green"});
           }
         }
       }
 
-      // Electrical fixtures
-      if (data.ViewLines.ElectricalFixture && visibleLayers.fixtures) {
+      // Electrical fixtures - yellow color
+      if (data.ViewLines.ElectricalFixture) {
         const lines = data.ViewLines.ElectricalFixture;
         const totalLines = Math.min(lines.length, MAX_ELEMENTS_PER_CATEGORY);
 
         for (let i = 0; i < totalLines; i++) {
           const line = lines[i];
           if (line.Start && line.End) {
-            elems.push({...line, type: "ElectricalFixture", color: colors.fixtures});
+            elems.push({...line, type: "Line2D", color: "yellow"});
           }
         }
       }
     }
 
     return elems;
-  }, [data, visibleLayers, colors]);
+  }, [data]);
 
   // Process route elements with performance optimizations
   const routeElements = useMemo(() => {
@@ -445,10 +445,11 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
   const handleMouseDown = useCallback((e: any) => {
     if (!selectionMode) return;
 
-    // Get mouse position
+    // Get mouse position relative to the stage
     const stage = stageRef.current;
     const pointerPos = stage.getPointerPosition();
 
+    // Store the selection start point and current position
     setSelectionRect({
       x: pointerPos.x,
       y: pointerPos.y,
@@ -697,7 +698,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
 
       {/* Selection count indicator */}
       {selectedRoutes.length > 0 && (
-        <div className="absolute bottom-12 right-4 bg-surface/80 backdrop-blur-sm rounded-md px-3 py-1.5 text-sm font-medium">
+        <div className="absolute bottom-12 right-4 bg-surface/80 backdrop-blur-sm rounded-md px-3 py-1.5 text-sm font-medium bg-white">
           Selected: {selectedRoutes.length}
         </div>
       )}
