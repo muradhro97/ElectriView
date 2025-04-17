@@ -316,124 +316,196 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
     }
   }, [offscreenCanvas, backgroundElements, xScale, yScale, width, height, position]);
 
-  // Handle wheel zoom
-  const handleWheel = (e: any) => {
+  // Create throttle function for wheel events
+  const throttleRef = useRef<{lastCall: number, timer: any}>({ lastCall: 0, timer: null });
+  
+  // Handle wheel zoom with performance optimizations
+  const handleWheel = useCallback((e: any) => {
     e.evt.preventDefault();
-
+    
+    const now = Date.now();
+    const throttleTime = 20; // ms between allowed wheel events
+    
+    // Throttle wheel events
+    if (now - throttleRef.current.lastCall < throttleTime) {
+      return;
+    }
+    
+    throttleRef.current.lastCall = now;
+    
     const stage = stageRef.current;
     if (!stage) return;
+    
+    // Use requestAnimationFrame for smoother rendering
+    requestAnimationFrame(() => {
+      const oldScale = stage.scaleX();
+      const pointer = stage.getPointerPosition();
+      
+      if (!pointer) return;
+      
+      const mousePointTo = {
+        x: (pointer.x - stage.x()) / oldScale,
+        y: (pointer.y - stage.y()) / oldScale,
+      };
+      
+      // Calculate zoom factor based on delta
+      const direction = e.evt.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = oldScale * direction;
+      
+      // Limit scale
+      const limitedScale = Math.min(Math.max(0.1, newScale), 10);
+      
+      // Update stage scale
+      stage.scale({ x: limitedScale, y: limitedScale });
+      
+      // Calculate new position
+      const newPos = {
+        x: pointer.x - mousePointTo.x * limitedScale,
+        y: pointer.y - mousePointTo.y * limitedScale,
+      };
+      
+      // Apply new position
+      stage.position(newPos);
+      
+      // Optimize by only updating state after zooming stops
+      if (throttleRef.current.timer) {
+        clearTimeout(throttleRef.current.timer);
+      }
+      
+      // Use lightweight local updates during active zooming
+      // Only update React state when zooming stops
+      throttleRef.current.timer = setTimeout(() => {
+        setScale(limitedScale);
+        setPosition(newPos);
+      }, 100);
+      
+      // Use batchDraw for performance
+      stage.batchDraw();
+    });
+  }, []);
 
-    const oldScale = stage.scaleX();
-    const pointer = stage.getPointerPosition();
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
-    };
-
-    const direction = e.evt.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = oldScale * direction;
-
-    // Limit scale
-    const limitedScale = Math.min(Math.max(0.1, newScale), 10);
-
-    stage.scale({ x: limitedScale, y: limitedScale });
-    setScale(limitedScale);
-
-    const newPos = {
-      x: pointer.x - mousePointTo.x * limitedScale,
-      y: pointer.y - mousePointTo.y * limitedScale,
-    };
-
-    stage.position(newPos);
-    setPosition(newPos);
-    stage.batchDraw();
-  };
-
-  // Programmatic zoom function
-  const handleZoom = (factor: number) => {
+  // Programmatic zoom function with performance optimizations
+  const handleZoom = useCallback((factor: number) => {
     const stage = stageRef.current;
     if (!stage) return;
+    
+    // Use requestAnimationFrame for smooth rendering
+    requestAnimationFrame(() => {
+      // Zoom centered on canvas
+      const centerX = width / 2;
+      const centerY = height / 2;
+      
+      // Convert center to canvas coordinates
+      const oldScale = stage.scaleX();
+      const centerPointTo = {
+        x: (centerX - stage.x()) / oldScale,
+        y: (centerY - stage.y()) / oldScale,
+      };
+      
+      // Apply zoom
+      const newScale = oldScale * factor;
+      
+      // Limit scale
+      const limitedScale = Math.min(Math.max(0.1, newScale), 10);
+      
+      // Apply transformation
+      stage.scale({ x: limitedScale, y: limitedScale });
+      
+      // Adjust position
+      const newPos = {
+        x: centerX - centerPointTo.x * limitedScale,
+        y: centerY - centerPointTo.y * limitedScale,
+      };
+      
+      stage.position(newPos);
+      
+      // Defer state updates to reduce render cycles during animation
+      if (throttleRef.current.timer) {
+        clearTimeout(throttleRef.current.timer);
+      }
+      
+      throttleRef.current.timer = setTimeout(() => {
+        setScale(limitedScale);
+        setPosition(newPos);
+      }, 50);
+      
+      // Use more efficient draw
+      stage.batchDraw();
+    });
+  }, [width, height]);
 
-    // Zoom centered on canvas
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    // Convert center to canvas coordinates
-    const oldScale = stage.scaleX();
-    const centerPointTo = {
-      x: (centerX - stage.x()) / oldScale,
-      y: (centerY - stage.y()) / oldScale,
-    };
-
-    // Apply zoom
-    const newScale = oldScale * factor;
-
-    // Limit scale
-    const limitedScale = Math.min(Math.max(0.1, newScale), 10);
-
-    stage.scale({ x: limitedScale, y: limitedScale });
-    setScale(limitedScale);
-
-    // Adjust position
-    const newPos = {
-      x: centerX - centerPointTo.x * limitedScale,
-      y: centerY - centerPointTo.y * limitedScale,
-    };
-
-    stage.position(newPos);
-    setPosition(newPos);
-    stage.batchDraw();
-  };
-
-  // Reset view to initial state
-  const resetView = () => {
+  // Reset view to initial state with performance optimizations
+  const resetView = useCallback(() => {
     const stage = stageRef.current;
     if (!stage) return;
+    
+    // Use requestAnimationFrame for smooth rendering
+    requestAnimationFrame(() => {
+      // Reset scale and position
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+      
+      // Update state after animation completes
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+      
+      // Use more efficient draw
+      stage.batchDraw();
+    });
+  }, []);
 
-    stage.scale({ x: 1, y: 1 });
-    stage.position({ x: 0, y: 0 });
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
-    stage.batchDraw();
-  };
-
-  // Fit contents to screen
-  const fitToScreen = () => {
+  // Fit contents to screen with performance optimizations
+  const fitToScreen = useCallback(() => {
     if (!stageRef.current || allElements.length === 0) return;
-
-    // Calculate the bounding box of all elements
-    const minX = d3.min(allElements, d => Math.min(d.Start.X, d.End.X)) || 0;
-    const maxX = d3.max(allElements, d => Math.max(d.Start.X, d.End.X)) || 100;
-    const minY = d3.min(allElements, d => Math.min(d.Start.Y, d.End.Y)) || 0;
-    const maxY = d3.max(allElements, d => Math.max(d.Start.Y, d.End.Y)) || 100;
-
-    // Calculate the scale to fit the bounding box
-    const elementWidth = maxX - minX;
-    const elementHeight = maxY - minY;
-
-    if (elementWidth === 0 || elementHeight === 0) return;
-
-    const scaleX = (width - margin * 2) / elementWidth;
-    const scaleY = (height - margin * 2) / elementHeight;
-    const newScale = Math.min(scaleX, scaleY) * 0.9; // 90% to leave some margin
-
-    // Apply the transform
-    const stage = stageRef.current;
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-
-    stage.scale({ x: newScale, y: newScale });
-    setScale(newScale);
-
-    const newPos = {
-      x: (width / 2) - (centerX * xScale.range()[1] / xDomain[1]) * newScale,
-      y: (height / 2) - (centerY * yScale.range()[0] / yDomain[1]) * newScale
-    };
-
-    stage.position(newPos);
-    setPosition(newPos);
-    stage.batchDraw();
-  };
+    
+    // Use requestAnimationFrame for smooth rendering
+    requestAnimationFrame(() => {
+      // Calculate the bounding box of all elements
+      // Using memoized values from xDomain and yDomain instead of recalculating
+      const minX = xDomain[0];
+      const maxX = xDomain[1];
+      const minY = yDomain[0];
+      const maxY = yDomain[1];
+      
+      // Calculate the scale to fit the bounding box
+      const elementWidth = maxX - minX;
+      const elementHeight = maxY - minY;
+      
+      if (elementWidth === 0 || elementHeight === 0) return;
+      
+      const scaleX = (width - margin * 2) / elementWidth;
+      const scaleY = (height - margin * 2) / elementHeight;
+      const newScale = Math.min(scaleX, scaleY) * 0.9; // 90% to leave some margin
+      
+      // Apply the transform
+      const stage = stageRef.current;
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      
+      stage.scale({ x: newScale, y: newScale });
+      
+      // Calculate new position
+      const newPos = {
+        x: (width / 2) - (centerX * xScale.range()[1] / xDomain[1]) * newScale,
+        y: (height / 2) - (centerY * yScale.range()[0] / yDomain[1]) * newScale
+      };
+      
+      stage.position(newPos);
+      
+      // Use a delayed state update to prevent React re-renders during animation
+      if (throttleRef.current.timer) {
+        clearTimeout(throttleRef.current.timer);
+      }
+      
+      throttleRef.current.timer = setTimeout(() => {
+        setScale(newScale);
+        setPosition(newPos);
+      }, 50);
+      
+      // Use more efficient draw
+      stage.batchDraw();
+    });
+  }, [allElements, width, height, margin, xDomain, yDomain, xScale]);
 
   // Toggle layers panel
   const handleToggleLayers = () => {
