@@ -385,29 +385,19 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
         {/* Vector Elements Layer */}
         <Layer>
           {routeElements.map((elem, index) => (
-            <React.Fragment key={`route-${index}`}>
-              <Line
-                points={[
-                  xScale(elem.Start.X),
-                  yScale(elem.Start.Y),
-                  xScale(elem.End.X),
-                  yScale(elem.End.Y),
-                ]}
-                stroke={elem.color}
-                strokeWidth={2}
-                lineCap="round"
-                lineJoin="round"
-              />
-              {elem.label && (
-                <Text
-                  x={(xScale(elem.Start.X) + xScale(elem.End.X)) / 2}
-                  y={(yScale(elem.Start.Y) + yScale(elem.End.Y)) / 2 - 10}
-                  text={elem.label}
-                  fontSize={12}
-                  fill="#fff"
-                />
-              )}
-            </React.Fragment>
+            <Line
+              key={`route-${index}`}
+              points={[
+                xScale(elem.Start.X),
+                yScale(elem.Start.Y),
+                xScale(elem.End.X),
+                yScale(elem.End.Y),
+              ]}
+              stroke={elem.color}
+              strokeWidth={2}
+              lineCap="round"
+              lineJoin="round"
+            />
           ))}
         </Layer>
       </Stage>
