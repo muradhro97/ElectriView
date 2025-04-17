@@ -307,7 +307,7 @@ const ElectricalPlanViewer: React.FC<ElectricalPlanViewerProps> = ({
       context.moveTo(xScale(line.Start.X), yScale(line.Start.Y));
       context.lineTo(xScale(line.End.X), yScale(line.End.Y));
       context.strokeStyle = line.color;
-      context.lineWidth = 0.5; // Thinner lines to avoid overlapping
+      context.lineWidth = 0.1; // Thinner lines to avoid overlapping
       context.stroke();
     });
 
